@@ -77,7 +77,7 @@ Download \`file-splitter-for-virustotal-$VERSION.apk\` below and open it on your
 EOF
 run gh release create "$TAG" "$OUT" \
   --target "$(git rev-parse HEAD)" \
-  --title "$VERSION" \
+  --title "$TAG" \
   --notes-file "$NOTES" \
   --generate-notes
 [[ "$DRY_RUN" == "1" ]] && echo "(dry run) nothing was published" || echo "✓ Published $TAG"
