@@ -1,0 +1,4 @@
+<resources>
+    <!-- Compose draws all UI; the window theme only needs to avoid an action bar. -->
+    <style name="Theme.FileSplitter" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    A file outline holding the VirusTotal mark.
+    ic_launcher_foreground_plain.xml is the same icon without the mark.
+    108x108 adaptive-icon canvas; the artwork is scaled to 80% around the center so launchers
+    leave a comfortable margin around it.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.8"
+        android:scaleY="0.8">
+        <path
+            android:pathData="M35,28 H63 L73,38 V80 H35 Z M63,28 V38 H73"
+            android:strokeColor="@color/icon_foreground"
+            android:strokeWidth="2.2"
+            android:strokeLineJoin="miter"
+            android:fillColor="#00000000" />
+        <!-- VirusTotal mark (100x89 viewBox) scaled to 24dp wide; 1dp left of center, which looks
+             centered because the folded corner takes visual weight from the top-right. -->
+        <group
+            android:translateX="41"
+            android:translateY="46"
+            android:scaleX="0.24"
+            android:scaleY="0.24">
+            <path
+                android:fillType="evenOdd"
+                android:fillColor="@color/icon_foreground"
+                android:pathData="M45.292,44.5 L0,89 H100 V0 H0 L45.292,44.5 Z M90,80 H22 L57.987,44.8 L22,9 H90 V80 Z" />
+        </group>
+    </group>
+</vector>

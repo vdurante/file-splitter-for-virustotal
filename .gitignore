@@ -1,0 +1,26 @@
+# Gradle and build output
+.gradle/
+.kotlin/
+build/
+/captures
+.externalNativeBuild
+.cxx
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Machine-specific config (SDK path)
+local.properties
+
+# Release signing keys: never commit these
+*.jks
+*.keystore
+keystore.properties
+
+# Generated test APKs (multi-GB, see scripts/make_test_apk.sh)
+test_apk_files/
+
+# OS and local tool files
+.DS_Store
+.claude/

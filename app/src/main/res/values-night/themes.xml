@@ -1,0 +1,4 @@
+<resources>
+    <!-- Dark window behind Compose, so dark mode doesn't flash white on launch. -->
+    <style name="Theme.FileSplitter" parent="android:Theme.Material.NoActionBar" />
+</resources>
