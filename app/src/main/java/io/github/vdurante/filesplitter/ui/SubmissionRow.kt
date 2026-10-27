@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
@@ -27,19 +26,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vdurante.filesplitter.scan.ItemKind
 import io.github.vdurante.filesplitter.scan.ItemStatus
-import io.github.vdurante.filesplitter.scan.ResolvedVia
 import io.github.vdurante.filesplitter.scan.SubmissionItem
 
 /** One submission: status icon, name, size, status line, VirusTotal link, Retry and Info buttons. */
@@ -77,21 +72,8 @@ fun SubmissionRow(item: SubmissionItem, onOpen: (String) -> Unit, onRetry: () ->
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (status is ItemStatus.Completed) {
-                        ViaChip(status.via, state.color())
-                        Spacer(Modifier.width(6.dp))
-                    }
-                    Text(
-                        statusText(status),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium,
-                        color = state.color(),
-                        // One line keeps rows even; the full message is in the Info popup.
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                Spacer(Modifier.height(4.dp))
+                StatusLine(status)
                 val progress = status.progress()
                 if (progress != null) {
                     Spacer(Modifier.height(4.dp))
@@ -117,25 +99,12 @@ fun SubmissionRow(item: SubmissionItem, onOpen: (String) -> Unit, onRetry: () ->
     }
 }
 
-/** Marks which of the two success paths produced the result. */
-@Composable
-fun ViaChip(via: ResolvedVia, color: Color) {
-    Surface(shape = RoundedCornerShape(4.dp), color = color.copy(alpha = 0.12f)) {
-        Text(
-            if (via == ResolvedVia.HASH) "HASH MATCH" else "UPLOADED",
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-        )
-    }
-}
-
 @Composable
 private fun StatusIcon(status: ItemStatus, state: DisplayState) {
     val color = state.color()
     Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
         when (state) {
-            DisplayState.WAITING -> Box(Modifier.size(16.dp).border(2.dp, color, CircleShape))
+            DisplayState.WAITING, DisplayState.PAUSED -> Box(Modifier.size(16.dp).border(2.dp, color, CircleShape))
             DisplayState.RUNNING -> {
                 val progress = status.progress()
                 if (progress != null) {

@@ -4,12 +4,10 @@ import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -20,7 +18,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -47,7 +44,6 @@ fun InfoDialog(
     fun size(bytes: Long) = "${Formatter.formatFileSize(context, bytes)} (%,d bytes)".format(bytes)
     val sha = item.sha256
     val status = item.status
-    val state = status.displayState()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(item.displayName, maxLines = 2, overflow = TextOverflow.Ellipsis) },
@@ -55,19 +51,7 @@ fun InfoDialog(
             SelectionContainer {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     Section("Result") {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                state.label(),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = state.color(),
-                            )
-                            if (status is ItemStatus.Completed) {
-                                Spacer(Modifier.width(8.dp))
-                                ViaChip(status.via, state.color())
-                            }
-                        }
-                        Text(statusText(status), style = MaterialTheme.typography.bodyMedium)
+                        StatusLine(status, detailLines = 4)
                         if (status is ItemStatus.Completed) {
                             status.stats?.let { s ->
                                 // Only the non-zero counts, e.g. "62 undetected · 10 unsupported · 2 timeout".
