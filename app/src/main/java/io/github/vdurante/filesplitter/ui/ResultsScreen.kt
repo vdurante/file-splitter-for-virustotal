@@ -45,10 +45,12 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import io.github.vdurante.filesplitter.R
 import io.github.vdurante.filesplitter.api.VirusTotalClient
+import io.github.vdurante.filesplitter.apk.ApkSplitter
 import io.github.vdurante.filesplitter.scan.ItemKind
 import io.github.vdurante.filesplitter.scan.ItemStatus
 import io.github.vdurante.filesplitter.scan.Phase
 import io.github.vdurante.filesplitter.scan.ScanSession
+import io.github.vdurante.filesplitter.scan.entryKey
 
 /** The list of submissions for the current scan, with the floating Resume / Retry failed button. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -151,16 +153,20 @@ fun ResultsScreen(
                 )
             }
             if (session.entries.isNotEmpty()) {
-                item { ApkContents(session.entries, bundleNumbers(session)) }
+                item { ApkContents(session.entries, bundleLabels(session)) }
             }
         }
     }
 }
 
-/** Path inside the APK → number of the bundle it was moved to. */
-private fun bundleNumbers(session: ScanSession): Map<String, Int> =
+/** [entryKey] of each moved file → label of the bundle it went into ("bundle 1", "base · bundle 1"). */
+private fun bundleLabels(session: ScanSession): Map<String, String> =
     session.items.filter { it.kind == ItemKind.BUNDLE }
-        .flatMap { bundle -> bundle.bundlePaths.map { it to bundle.id } }
+        .flatMap { bundle ->
+            val number = bundle.bundleNumber ?: bundle.id
+            val label = bundle.innerApk?.let { "${ApkSplitter.baseName(it)} · bundle $number" } ?: "bundle $number"
+            bundle.bundlePaths.map { entryKey(bundle.innerApk, it) to label }
+        }
         .toMap()
 
 @Composable
@@ -170,7 +176,8 @@ private fun HowItWorksDialog(onDismiss: () -> Unit) {
         title = { Text("How it works") },
         text = {
             Text(
-                "APKs under 650 MB are submitted as they are.\n\n" +
+                "APKs under 650 MB are submitted as they are. In an .apks archive, each APK inside is " +
+                    "treated the same way.\n\n" +
                     "Bigger APKs are split: their largest files move into bundle APKs (up to 650 MB each, " +
                     "with the original manifest so VirusTotal analyzes them as APKs), and everything else " +
                     "stays in a slim APK.\n\n" +

@@ -1,6 +1,5 @@
 package io.github.vdurante.filesplitter.ui
 
-import android.text.format.Formatter
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -30,12 +29,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.vdurante.filesplitter.formatSize
 import io.github.vdurante.filesplitter.scan.ItemKind
 import io.github.vdurante.filesplitter.scan.Phase
 import io.github.vdurante.filesplitter.scan.ScanSession
@@ -79,7 +78,6 @@ fun SummaryCard(session: ScanSession, busy: Boolean, onRestart: () -> Unit) {
 /** The picked APK's name and size. */
 @Composable
 private fun FileHeader(session: ScanSession) {
-    val context = LocalContext.current
     Text(
         session.fileName,
         style = MaterialTheme.typography.titleMedium,
@@ -89,7 +87,7 @@ private fun FileHeader(session: ScanSession) {
     )
     if (session.fileSize >= 0) {
         Text(
-            Formatter.formatFileSize(context, session.fileSize),
+            formatSize(session.fileSize),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -101,9 +99,15 @@ private fun ResultCounts(session: ScanSession, busy: Boolean) {
     val counts = session.items.groupingBy { it.status.displayState() }.eachCount()
     val finished = (counts[DisplayState.CLEAN] ?: 0) + (counts[DisplayState.DETECTED] ?: 0)
     val bundles = session.items.count { it.kind == ItemKind.BUNDLE }
+    val innerApks = session.items.mapNotNull { it.innerApk }.distinct().size
     Text("$finished of ${session.items.size} done", style = MaterialTheme.typography.titleSmall)
     Text(
-        if (bundles == 0) "Submitted as a single APK" else "Slim APK + ${plural(bundles, "bundle")}",
+        when {
+            innerApks > 0 -> plural(innerApks, "APK") + " from the archive" +
+                if (bundles > 0) ", ${plural(bundles, "bundle")}" else ""
+            bundles == 0 -> "Submitted as a single APK"
+            else -> "Slim APK + ${plural(bundles, "bundle")}"
+        },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

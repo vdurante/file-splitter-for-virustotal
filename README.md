@@ -24,6 +24,7 @@
 
 ## Features
 
+- 📦 **`.apks` support:** split-APK archives are opened and every APK inside is scanned.
 - 🧩 **Splits oversized APKs:** anything over 650 MB becomes a slim APK plus as few bundle APKs as
   possible, each still analyzed by VirusTotal as an Android package.
 - ⚡ **Hash first, upload second:** files VirusTotal already knows are answered instantly by SHA-256.
@@ -36,26 +37,17 @@
 
 ## How it works
 
-```mermaid
-flowchart LR
-    A[Pick an APK] --> B{Over 650 MB?}
-    B -- no --> U[Submit as-is]
-    B -- yes --> S[Move the largest files out]
-    S --> SL[Slim APK<br/>everything else]
-    S --> BU[Bundle APKs ≤ 650 MB<br/>moved files + manifest]
-    U & SL & BU --> H[SHA-256 lookup]
-    H -- known --> R[Report]
-    H -- unknown --> UP[Upload and analyze] --> R
-```
-
-1. Paste your VirusTotal API key (stored on the device only) and pick an APK.
+1. Save your VirusTotal API key (stored on the device only) and pick an APK or `.apks` archive.
 2. **Under 650 MB:** the APK is submitted as-is.
 3. **Over 650 MB:** the largest files are moved out until the rest fits, producing:
    - a **slim APK** with everything else, and
    - **bundle APKs** (up to 650 MB each) holding the moved files at their original paths, plus the
      original `AndroidManifest.xml` so VirusTotal still analyzes them as APKs. Files are packed
      into as few bundles as possible.
-4. Files are processed one at a time: SHA-256 → hash lookup → upload only if VirusTotal doesn't
+4. **`.apks` archives** (bundletool, SAI): each APK inside is handled the same way and named after
+   itself, e.g. `base.apk`, or `base_slim.apk` + `base_bundle1.apk` when it's too big. Archive
+   metadata (`toc.pb`, icons, JSON) isn't uploaded.
+5. Files are processed one at a time: SHA-256 → hash lookup → upload only if VirusTotal doesn't
    know the file yet → wait for the analysis.
 
 Each row shows its status (waiting, running, clean, detections, error), whether the result came
@@ -83,6 +75,7 @@ Android 8.0 or newer.
 | `small_test.apk` | A real APK under 650 MB, submitted directly |
 | `small_test_salted.apk` | The same plus a random file, so its hash is new every run (forces an upload) |
 | `big_test.apk` | About 1.5 GB: the APK plus three 500 MB files in nested folders, so it gets split |
+| `big_test.apks` | A split-APK archive: `base.apk` (= `big_test.apk`, gets split) + a small `split_config` APK |
 
 ```bash
 PUSH=1 scripts/make_test_apk.sh                         # also copy them to the device's Downloads
@@ -112,7 +105,7 @@ scripts/                 test-file helpers
 
 ## Limitations
 
-- Split APKs (`.apks`, `.xapk`) aren't supported yet.
+- `.xapk` archives and OBB expansion files aren't supported.
 - A single file over 650 MB (as stored in the APK) can't be submitted.
 
 ## License

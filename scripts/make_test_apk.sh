@@ -7,6 +7,8 @@
 #                                  on every run (VirusTotal won't know it: forces a real upload)
 #   test_apk_files/big_test.apk    the base APK plus three ~500 MB random files (A, B, C) in separate
 #                                  nested folders, so the app has to extract two of them
+#   test_apk_files/big_test.apks   a split-APK archive like bundletool's: splits/base.apk (= big_test.apk)
+#                                  + splits/split_config.arm64_v8a.apk (= small_test.apk) + toc.pb
 #
 # Usage: scripts/make_test_apk.sh [base.apk] [size_mb_per_file]
 #   base.apk defaults to this project's debug build (built if missing); size defaults to 500.
@@ -47,8 +49,16 @@ cp "$BASE" "$OUT_DIR/big_test.apk"
 # doesn't matter for scanning (and the app doesn't re-sign either).
 (cd "$STAGE" && zip -q -r -0 "$OUT_DIR/big_test.apk" assets res lib)
 
+# A split-APK archive. Inner APKs are stored uncompressed, as bundletool does.
+mkdir -p "$STAGE/apks/splits"
+cp "$OUT_DIR/big_test.apk" "$STAGE/apks/splits/base.apk"
+cp "$OUT_DIR/small_test.apk" "$STAGE/apks/splits/split_config.arm64_v8a.apk"
+printf 'placeholder table of contents' > "$STAGE/apks/toc.pb"
+rm -f "$OUT_DIR/big_test.apks"
+(cd "$STAGE/apks" && zip -q -r -0 "$OUT_DIR/big_test.apks" toc.pb splits)
+
 echo "Created:"
-ls -lh "$OUT_DIR/small_test.apk" "$OUT_DIR/small_test_salted.apk" "$OUT_DIR/big_test.apk"
+ls -lh "$OUT_DIR/small_test.apk" "$OUT_DIR/small_test_salted.apk" "$OUT_DIR/big_test.apk" "$OUT_DIR/big_test.apks"
 echo "Salt: $(cat "$STAGE/salt/assets/salt.txt")"
 shasum -a 256 "$OUT_DIR/small_test.apk" "$OUT_DIR/small_test_salted.apk"
 unzip -l "$OUT_DIR/big_test.apk" | sort -k1 -n -r | head -8
@@ -58,4 +68,5 @@ if [[ "${PUSH:-0}" == "1" ]]; then
   "$ADB" push "$OUT_DIR/small_test.apk" /sdcard/Download/small_test.apk
   "$ADB" push "$OUT_DIR/small_test_salted.apk" /sdcard/Download/small_test_salted.apk
   "$ADB" push "$OUT_DIR/big_test.apk" /sdcard/Download/big_test.apk
+  "$ADB" push "$OUT_DIR/big_test.apks" /sdcard/Download/big_test.apks
 fi

@@ -1,6 +1,5 @@
 package io.github.vdurante.filesplitter.ui
 
-import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,16 +18,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vdurante.filesplitter.apk.ApkSplitter
+import io.github.vdurante.filesplitter.formatSize
 import io.github.vdurante.filesplitter.scan.ItemKind
 import io.github.vdurante.filesplitter.scan.ItemStatus
 import io.github.vdurante.filesplitter.scan.ResolvedVia
 import io.github.vdurante.filesplitter.scan.SubmissionItem
+import io.github.vdurante.filesplitter.scan.entryKey
 import java.text.DateFormat
 import java.util.Date
 
@@ -40,8 +40,7 @@ fun InfoDialog(
     onDismiss: () -> Unit,
     onOpen: (String) -> Unit,
 ) {
-    val context = LocalContext.current
-    fun size(bytes: Long) = "${Formatter.formatFileSize(context, bytes)} (%,d bytes)".format(bytes)
+    fun size(bytes: Long) = "${formatSize(bytes)} (%,d bytes)".format(bytes)
     val sha = item.sha256
     val status = item.status
     AlertDialog(
@@ -77,16 +76,18 @@ fun InfoDialog(
 
                     Section("File") {
                         Field("Type", when (item.kind) {
-                            ItemKind.ORIGINAL_APK -> "Original APK (under 650 MB)"
-                            ItemKind.SLIM_APK -> "Slim APK: the original minus the files moved into bundles"
-                            ItemKind.BUNDLE -> "Bundle APK: AndroidManifest.xml plus files moved out of the " +
-                                "original APK, at their original paths"
+                            ItemKind.ORIGINAL_APK ->
+                                if (item.innerApk != null) "APK from the .apks archive, submitted as-is" else "Original APK, submitted as-is"
+                            ItemKind.SLIM_APK -> "Slim APK: ${apkLabel(item)} minus the files moved into bundles"
+                            ItemKind.BUNDLE -> "Bundle APK: AndroidManifest.xml plus files moved out of " +
+                                "${apkLabel(item)}, at their original paths"
                         })
+                        item.innerApk?.let { Field("Inside the archive", it, code = true) }
                         Field("Size", size(item.sizeBytes))
                         if (item.kind == ItemKind.BUNDLE) {
-                            val paths = item.bundlePaths.toSet()
-                            val contents = entries.filter { it.name in paths }
-                            FieldLabel("Contents · ${plural(contents.size, "file")}, ${Formatter.formatFileSize(context, contents.sumOf { it.size })}")
+                            val keys = item.bundlePaths.mapTo(HashSet()) { entryKey(item.innerApk, it) }
+                            val contents = entries.filter { it.name in keys }.map { it.copy(name = it.name.substringAfter("!/")) }
+                            FieldLabel("Contents · ${plural(contents.size, "file")}, ${formatSize(contents.sumOf { it.size })}")
                             EntryList(contents)
                         }
                     }
@@ -106,6 +107,9 @@ fun InfoDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
     )
 }
+
+/** "the original APK", or the inner APK's name for an `.apks` archive. */
+private fun apkLabel(item: SubmissionItem) = item.innerApk?.substringAfterLast('/') ?: "the original APK"
 
 /** A titled group of fields, with a divider below unless it is the last one. */
 @Composable

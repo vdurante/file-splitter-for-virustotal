@@ -35,7 +35,11 @@ data class SubmissionItem(
     /** Upload size (for a bundle, an estimate until it is built). */
     val sizeBytes: Long,
     val kind: ItemKind,
-    /** Paths (inside the original APK) of the files a bundle carries. */
+    /** For `.apks` archives: path of the inner APK this item comes from; null for a plain APK. */
+    val innerApk: String? = null,
+    /** 1, 2, … for bundles, numbered per APK (matches the `_bundleN` in [displayName]). */
+    val bundleNumber: Int? = null,
+    /** Paths (inside the APK the bundle was split from) of the files a bundle carries. */
     val bundlePaths: List<String> = emptyList(),
     /** File on disk to upload (slim APK, or a local copy of the original). */
     val localPath: String? = null,
@@ -52,6 +56,12 @@ data class SubmissionItem(
     val lastError: String? = null,
 )
 
+/**
+ * Key of a file in [ScanSession.entries]: the path itself for a plain APK, `inner.apk!/path` for a
+ * file inside an `.apks` archive's inner APK.
+ */
+fun entryKey(innerApk: String?, path: String) = if (innerApk == null) path else "$innerApk!/$path"
+
 sealed interface Phase {
     /** [progress] null means indeterminate. */
     data class Preparing(val message: String, val progress: Float? = null) : Phase
@@ -65,7 +75,7 @@ data class ScanSession(
     val fileSize: Long,
     val phase: Phase,
     val items: List<SubmissionItem> = emptyList(),
-    /** Full APK listing, largest first. Only filled when the APK had to be split. */
+    /** Listing of every APK that had to be split, largest first, keyed by [entryKey]. */
     val entries: List<ApkSplitter.Entry> = emptyList(),
     /** VirusTotal rejected the API key: the queue is paused until the key is changed. */
     val apiKeyRejected: Boolean = false,

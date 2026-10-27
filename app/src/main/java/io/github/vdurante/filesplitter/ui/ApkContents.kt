@@ -1,6 +1,5 @@
 package io.github.vdurante.filesplitter.ui
 
-import android.text.format.Formatter
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,11 +17,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.vdurante.filesplitter.apk.ApkSplitter
+import io.github.vdurante.filesplitter.formatSize
 
 private const val MAX_LISTED_ENTRIES = 200
 
@@ -31,11 +30,11 @@ private const val MAX_LISTED_ENTRIES = 200
  * labeled with its number; the rest stayed in the slim APK.
  */
 @Composable
-fun ApkContents(entries: List<ApkSplitter.Entry>, bundleOf: Map<String, Int>) {
+fun ApkContents(entries: List<ApkSplitter.Entry>, bundleOf: Map<String, String>) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column {
         TextButton(onClick = { expanded = !expanded }) {
-            Text(if (expanded) "Hide APK contents" else "Show APK contents (${entries.size} files, largest first)")
+            Text(if (expanded) "Hide contents" else "Show contents (${entries.size} files, largest first)")
         }
         if (expanded) {
             Text(
@@ -50,13 +49,12 @@ fun ApkContents(entries: List<ApkSplitter.Entry>, bundleOf: Map<String, Int>) {
 
 /** Rows of path + size, optionally labeled with a bundle number. Also used by the Info popup. */
 @Composable
-fun EntryList(entries: List<ApkSplitter.Entry>, bundleOf: Map<String, Int> = emptyMap()) {
-    val context = LocalContext.current
+fun EntryList(entries: List<ApkSplitter.Entry>, bundleOf: Map<String, String> = emptyMap()) {
     Column {
         entries.take(MAX_LISTED_ENTRIES).forEach { entry ->
             Row(Modifier.padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                bundleOf[entry.name]?.let { number ->
-                    BundleLabel(number)
+                bundleOf[entry.name]?.let { label ->
+                    BundleLabel(label)
                     Spacer(Modifier.width(6.dp))
                 }
                 Text(
@@ -68,7 +66,7 @@ fun EntryList(entries: List<ApkSplitter.Entry>, bundleOf: Map<String, Int> = emp
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(Formatter.formatShortFileSize(context, entry.size), style = MaterialTheme.typography.bodySmall)
+                Text(formatSize(entry.size), style = MaterialTheme.typography.bodySmall)
             }
         }
         if (entries.size > MAX_LISTED_ENTRIES) {
@@ -78,10 +76,10 @@ fun EntryList(entries: List<ApkSplitter.Entry>, bundleOf: Map<String, Int> = emp
 }
 
 @Composable
-private fun BundleLabel(number: Int) {
+private fun BundleLabel(text: String) {
     Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
         Text(
-            "bundle $number",
+            text,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),

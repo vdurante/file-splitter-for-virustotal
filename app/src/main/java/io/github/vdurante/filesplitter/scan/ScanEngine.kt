@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.text.format.Formatter
 import android.util.Log
 import androidx.core.content.edit
 import androidx.core.net.toUri
@@ -15,6 +14,13 @@ import io.github.vdurante.filesplitter.api.VirusTotalClient
 import io.github.vdurante.filesplitter.api.VirusTotalException
 import io.github.vdurante.filesplitter.apk.ApkSplitter
 import io.github.vdurante.filesplitter.apk.ZipReader
+import io.github.vdurante.filesplitter.formatSize
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.RandomAccessFile
+import java.util.zip.ZipException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,12 +36,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.io.IOException
-import java.io.RandomAccessFile
-import java.util.zip.ZipException
 
 /**
  * Owns the current scan independently of any screen, so work continues while [ScanService] keeps
@@ -172,6 +172,7 @@ class ScanEngine(private val app: Application) {
         @Volatile private var preparing = false
         @Volatile private var running = false
         @Volatile private var zip: ZipReader? = null
+        private val innerZips = mutableMapOf<String, ZipReader>()
 
         init {
             startWorker()
@@ -182,12 +183,12 @@ class ScanEngine(private val app: Application) {
             refreshBusy()
             prepJob = scanScope.launch(Dispatchers.IO) {
                 try {
-                    val size = _session.value?.fileSize ?: -1
-                    if (size in 0..ApkSplitter.VT_MAX_BYTES) {
-                        val name = _session.value?.fileName ?: "app.apk"
-                        setReady(listOf(SubmissionItem(0, name, size, ItemKind.ORIGINAL_APK)))
+                    val session = checkNotNull(_session.value)
+                    val isArchiveName = session.fileName.endsWith(".apks", ignoreCase = true)
+                    if (!isArchiveName && session.fileSize in 0..ApkSplitter.VT_MAX_BYTES) {
+                        setReady(listOf(SubmissionItem(0, session.fileName, session.fileSize, ItemKind.ORIGINAL_APK)))
                     } else {
-                        prepareSplit()
+                        prepareFromZip()
                     }
                 } catch (e: CancellationException) {
                     throw e
@@ -231,10 +232,10 @@ class ScanEngine(private val app: Application) {
             scanScope.cancel()
             kick.close()
             // Cancelled IO may still be mid-read; let it unwind before closing the zip.
-            val toClose = zip
+            val toClose = listOfNotNull(zip) + synchronized(this) { innerZips.values.toList() }
             Thread {
                 Thread.sleep(2_000)
-                runCatching { toClose?.close() }
+                toClose.forEach { runCatching { it.close() } }
             }.start()
         }
 
@@ -268,33 +269,79 @@ class ScanEngine(private val app: Application) {
             if (scan === this || scan == null) _busy.value = preparing || running
         }
 
-        private fun prepareSplit() {
+        /** A big APK, or an `.apks` archive of any size: both need the zip opened. */
+        private fun prepareFromZip() {
             val session = checkNotNull(_session.value)
             val opened = openZip(session.fileSize)
-            if (opened.size <= ApkSplitter.VT_MAX_BYTES) {
+            zip = opened.zip
+            updateSession { it.copy(fileSize = opened.size) }
+            when {
+                ApkSplitter.isSplitArchive(session.fileName, opened.zip) -> prepareArchive(opened.zip)
                 // Size was unknown up front and the copy turned out small enough to submit as-is.
-                setReady(listOf(
+                opened.size <= ApkSplitter.VT_MAX_BYTES -> setReady(listOf(
                     SubmissionItem(0, session.fileName, opened.size, ItemKind.ORIGINAL_APK, localPath = opened.copy?.path)
                 ))
-                return
+                else -> {
+                    val (items, entries) = splitApk(opened.zip, opened.size, ApkSplitter.baseName(session.fileName), null, 0)
+                    updateSession { it.copy(entries = entries) }
+                    setReady(items)
+                }
             }
-            val zipFile = checkNotNull(opened.zip)
-            zip = zipFile
+        }
 
-            setPhase(Phase.Preparing("Listing APK contents…"))
-            val entries = ApkSplitter.listEntries(zipFile)
-            updateSession { it.copy(fileSize = opened.size, entries = entries) }
+        /**
+         * `.apks`: each inner APK is submitted on its own, as `<name>.apk`, or split into
+         * `<name>_slim.apk` + `<name>_bundleN.apk` when it is over the limit.
+         */
+        private fun prepareArchive(archive: ZipReader) {
+            val inner = ApkSplitter.innerApks(archive)
+            if (inner.isEmpty()) throw IOException("No APKs found in this archive")
+            // Inner APKs can share a file name in different folders; keep upload names unique.
+            val used = mutableSetOf<String>()
+            val bases = inner.map { entry ->
+                val base = ApkSplitter.baseName(entry.name)
+                generateSequence(1) { it + 1 }.map { if (it == 1) base else "${base}_$it" }.first { used.add(it) }
+            }
+            val items = mutableListOf<SubmissionItem>()
+            val entries = mutableListOf<ApkSplitter.Entry>()
+            inner.zip(bases).forEach { (entry, base) ->
+                if (entry.size <= ApkSplitter.VT_MAX_BYTES) {
+                    items += SubmissionItem(items.size, "$base.apk", entry.size, ItemKind.ORIGINAL_APK, innerApk = entry.name)
+                } else {
+                    val (split, listing) = splitApk(zipFor(entry.name), entry.size, base, entry.name, items.size)
+                    items += split
+                    entries += listing
+                }
+            }
+            updateSession { it.copy(entries = entries.sortedByDescending { it.compressedSize }) }
+            setReady(items)
+        }
 
-            val removed = ApkSplitter.chooseEntriesToRemove(entries, opened.size).toMutableList()
-            val slimName = ApkSplitter.slimName(session.fileName)
+        /**
+         * Moves the largest files of one APK into bundles until the rest fits: returns the slim APK
+         * + bundle items (ids from [firstId]) and the APK's listing keyed by [entryKey].
+         */
+        private fun splitApk(
+            apk: ZipReader,
+            apkSize: Long,
+            baseName: String,
+            innerApk: String?,
+            firstId: Int,
+        ): Pair<List<SubmissionItem>, List<ApkSplitter.Entry>> {
+            val label = "$baseName.apk"
+            setPhase(Phase.Preparing("Listing $label contents…"))
+            val entries = ApkSplitter.listEntries(apk)
+
+            val removed = ApkSplitter.chooseEntriesToRemove(entries, apkSize).toMutableList()
+            val slimName = ApkSplitter.slimName(baseName)
             val slimFile = File(workDir, slimName)
             while (true) {
-                val message = "Repacking APK without its ${removed.size} largest files " +
+                val message = "Repacking $label without its ${removed.size} largest files " +
                     "(${formatSize(removed.sumOf { it.size })})…"
                 val toCopy = entries.filter { it !in removed }.sumOf { it.size }.coerceAtLeast(1)
                 var lastReported = 0L
                 setPhase(Phase.Preparing(message, 0f))
-                ApkSplitter.writeSlimApk(zipFile, removed.mapTo(HashSet()) { it.name }, slimFile) { copied ->
+                ApkSplitter.writeSlimApk(apk, removed.mapTo(HashSet()) { it.name }, slimFile) { copied ->
                     scanScope.ensureActive()
                     if (copied - lastReported >= PREP_PROGRESS_STEP) {
                         lastReported = copied
@@ -304,41 +351,35 @@ class ScanEngine(private val app: Application) {
                 if (slimFile.length() <= ApkSplitter.VT_MAX_BYTES) break
                 // The estimate was off (e.g. re-deflating grew some entries): pull out the next one.
                 val next = entries.firstOrNull { it !in removed }
-                    ?: throw IOException("Could not shrink the APK below 650 MB")
+                    ?: throw IOException("Could not shrink $label below 650 MB")
                 removed += next
             }
 
             val items = mutableListOf(
-                SubmissionItem(0, slimName, slimFile.length(), ItemKind.SLIM_APK, localPath = slimFile.path)
+                SubmissionItem(firstId, slimName, slimFile.length(), ItemKind.SLIM_APK, innerApk = innerApk, localPath = slimFile.path)
             )
             // Every bundle carries the manifest, so VirusTotal treats it as an APK.
-            val manifestSize = zipFile.getEntry(ApkSplitter.MANIFEST)?.compressedSize ?: 0L
+            val manifestSize = apk.getEntry(ApkSplitter.MANIFEST)?.compressedSize ?: 0L
             val plan = ApkSplitter.planBundles(removed, manifestSize)
-            plan.bundles.forEachIndexed { index, files ->
+            val bundles = plan.bundles.map { files -> files to null } +
+                plan.tooBig.map { listOf(it) to "This file alone is over VirusTotal's 650 MB limit" }
+            bundles.forEachIndexed { index, (files, tooBig) ->
                 items += SubmissionItem(
-                    id = index + 1,
-                    displayName = ApkSplitter.bundleName(session.fileName, index + 1),
+                    id = firstId + index + 1,
+                    displayName = ApkSplitter.bundleName(baseName, index + 1),
                     // Estimate until the bundle is built; replaced by the real size then.
                     sizeBytes = manifestSize + files.sumOf { it.compressedSize },
                     kind = ItemKind.BUNDLE,
+                    innerApk = innerApk,
+                    bundleNumber = index + 1,
                     bundlePaths = files.map { it.name },
+                    status = tooBig?.let { ItemStatus.Failed(it, retryable = false) } ?: ItemStatus.Queued,
                 )
             }
-            plan.tooBig.forEachIndexed { index, entry ->
-                val number = plan.bundles.size + index + 1
-                items += SubmissionItem(
-                    id = number,
-                    displayName = ApkSplitter.bundleName(session.fileName, number),
-                    sizeBytes = entry.compressedSize,
-                    kind = ItemKind.BUNDLE,
-                    bundlePaths = listOf(entry.name),
-                    status = ItemStatus.Failed("This file alone is over VirusTotal's 650 MB limit", retryable = false),
-                )
-            }
-            setReady(items)
+            return items to entries.map { it.copy(name = entryKey(innerApk, it.name)) }
         }
 
-        private inner class OpenedZip(val zip: ZipReader?, val copy: File?, val size: Long)
+        private inner class OpenedZip(val zip: ZipReader, val copy: File?, val size: Long)
 
         /**
          * Reads the picked file in place through its descriptor when the provider hands out a real,
@@ -385,7 +426,6 @@ class ScanEngine(private val app: Application) {
                     }
                 }
             }
-            if (copy.length() <= ApkSplitter.VT_MAX_BYTES) return OpenedZip(null, copy, copy.length())
             val file = RandomAccessFile(copy, "r")
             return try {
                 OpenedZip(ZipReader(file.channel, file), copy, copy.length())
@@ -395,18 +435,46 @@ class ScanEngine(private val app: Application) {
             }
         }
 
-        /** Extracted files are read from the original APK, which is reopened lazily after a restart. */
+        /** The picked file's zip, reopened lazily after a restart. */
         @Synchronized
-        private fun zipForEntries(): ZipReader {
+        private fun outerZip(): ZipReader {
             zip?.let { return it }
             val copy = File(workDir, "input.apk")
             val opened = if (copy.exists()) {
                 val file = RandomAccessFile(copy, "r")
                 ZipReader(file.channel, file)
             } else {
-                openZip(-1).zip ?: throw IOException("Can't open the original APK")
+                openZip(-1).zip
             }
             zip = opened
+            return opened
+        }
+
+        /**
+         * The zip that [innerApk] names inside an `.apks` archive (or the picked APK itself when null).
+         * Inner APKs are normally stored uncompressed and read in place; compressed ones are
+         * extracted to app storage once.
+         */
+        @Synchronized
+        private fun zipFor(innerApk: String?): ZipReader {
+            val outer = outerZip()
+            if (innerApk == null) return outer
+            innerZips[innerApk]?.let { return it }
+            val entry = outer.getEntry(innerApk) ?: throw IOException("$innerApk not found in the archive")
+            val opened = outer.nested(entry) ?: run {
+                val file = File(workDir, "inner_" + innerApk.replace('/', '_'))
+                if (file.length() != entry.size) {
+                    // Only during preparation; after a restart this happens silently mid-queue.
+                    if (_session.value?.phase is Phase.Preparing) {
+                        setPhase(Phase.Preparing("Extracting ${entry.name.substringAfterLast('/')}…"))
+                    }
+                    workDir.mkdirs()
+                    outer.getInputStream(entry).use { input -> file.outputStream().use { input.copyTo(it, 256 * 1024) } }
+                }
+                val raf = RandomAccessFile(file, "r")
+                ZipReader(raf.channel, raf)
+            }
+            innerZips[innerApk] = opened
             return opened
         }
 
@@ -422,7 +490,7 @@ class ScanEngine(private val app: Application) {
                     // Built right before use and deleted after, so only one bundle is on disk at a time.
                     val bundle = File(workDir, "bundle_$id.apk")
                     withContext(Dispatchers.IO) {
-                        val zipFile = zipForEntries()
+                        val zipFile = zipFor(item.innerApk)
                         val paths = item.bundlePaths.toSet()
                         paths.firstOrNull { zipFile.getEntry(it) == null }?.let { throw IOException("$it not found in the APK") }
                         val total = zipFile.entries
@@ -446,9 +514,19 @@ class ScanEngine(private val app: Application) {
                     updateItem(id) { it.copy(sizeBytes = bundle.length()) }
                     UploadSource(item.displayName, bundle.length()) { bundle.inputStream() } to { bundle.delete() }
                 }
-                else -> UploadSource(item.displayName, item.sizeBytes) {
-                    app.contentResolver.openInputStream(uri) ?: throw IOException("Can't open the APK. Pick it again.")
-                } to {}
+                else -> {
+                    val innerApk = item.innerApk
+                    if (innerApk != null) {
+                        // An inner APK small enough to go as-is: streamed straight out of the archive.
+                        val archive = withContext(Dispatchers.IO) { outerZip() }
+                        val entry = archive.getEntry(innerApk) ?: throw IOException("$innerApk not found in the archive")
+                        UploadSource(item.displayName, entry.size) { archive.getInputStream(entry) } to {}
+                    } else {
+                        UploadSource(item.displayName, item.sizeBytes) {
+                            app.contentResolver.openInputStream(uri) ?: throw IOException("Can't open the APK. Pick it again.")
+                        } to {}
+                    }
+                }
             }
         }
 
@@ -587,8 +665,6 @@ class ScanEngine(private val app: Application) {
             }
             throw IOException("Still analyzing on VirusTotal. Retry to check again.")
         }
-
-        private fun formatSize(bytes: Long) = Formatter.formatFileSize(app, bytes)
 
         private fun itemById(id: Int) = _session.value?.items?.firstOrNull { it.id == id }
 

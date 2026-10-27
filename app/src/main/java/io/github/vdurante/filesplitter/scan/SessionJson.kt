@@ -47,6 +47,8 @@ object SessionJson {
     private fun SubmissionItem.toJson() = JSONObject().apply {
         put("id", id)
         put("displayName", displayName)
+        put("innerApk", innerApk)
+        put("bundleNumber", bundleNumber)
         put("bundlePaths", JSONArray(bundlePaths))
         put("sizeBytes", sizeBytes)
         put("kind", kind.name)
@@ -72,6 +74,8 @@ object SessionJson {
     private fun JSONObject.toItem() = SubmissionItem(
         id = getInt("id"),
         displayName = getString("displayName"),
+        innerApk = optStringOrNull("innerApk"),
+        bundleNumber = if (has("bundleNumber")) getInt("bundleNumber") else null,
         bundlePaths = optJSONArray("bundlePaths")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
         sizeBytes = getLong("sizeBytes"),
         kind = ItemKind.valueOf(getString("kind")),

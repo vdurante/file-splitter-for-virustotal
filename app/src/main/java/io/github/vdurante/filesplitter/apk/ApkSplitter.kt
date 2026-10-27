@@ -95,9 +95,32 @@ object ApkSplitter {
 
     class Bundles(val bundles: List<List<Entry>>, val tooBig: List<Entry>)
 
-    fun slimName(apkName: String) = apkName.removeSuffix(".apk") + "__slim.apk"
+    /** `app.apk` → `app_slim.apk`. */
+    fun slimName(baseName: String) = "${baseName}_slim.apk"
 
-    fun bundleName(apkName: String, number: Int) = apkName.removeSuffix(".apk") + "__bundle_$number.apk"
+    /** `app.apk`, 2 → `app_bundle2.apk`. */
+    fun bundleName(baseName: String, number: Int) = "${baseName}_bundle$number.apk"
+
+    /** `app.apk` → `app`; `splits/base-master.apk` → `base-master`. */
+    fun baseName(fileName: String) = fileName.substringAfterLast('/').removeSuffix(".apk").removeSuffix(".APK")
+
+    /**
+     * A split-APK archive (`.apks` from bundletool or SAI): a zip of APKs rather than an APK itself.
+     * Recognized by extension, or by holding APKs but no AndroidManifest.xml of its own.
+     */
+    fun isSplitArchive(fileName: String, zip: ZipReader): Boolean {
+        if (fileName.endsWith(".apks", ignoreCase = true)) return true
+        return zip.getEntry(MANIFEST) == null && innerApks(zip).isNotEmpty()
+    }
+
+    /**
+     * The APKs inside a split archive, base first. Other members (`toc.pb`, `meta.sai_v1.json`,
+     * icons) are metadata and aren't scanned.
+     */
+    fun innerApks(zip: ZipReader): List<ZipReader.Entry> =
+        zip.entries
+            .filter { !it.isDirectory && it.name.endsWith(".apk", ignoreCase = true) }
+            .sortedWith(compareBy({ !baseName(it.name).startsWith("base") }, { it.name }))
 
     const val MANIFEST = "AndroidManifest.xml"
 

@@ -1,6 +1,5 @@
 package io.github.vdurante.filesplitter.ui
 
-import android.text.format.Formatter
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -30,9 +29,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.github.vdurante.filesplitter.formatSize
 import io.github.vdurante.filesplitter.scan.ItemKind
 import io.github.vdurante.filesplitter.scan.ItemStatus
 import io.github.vdurante.filesplitter.scan.SubmissionItem
@@ -40,7 +39,6 @@ import io.github.vdurante.filesplitter.scan.SubmissionItem
 /** One submission: status icon, name, size, status line, VirusTotal link, Retry and Info buttons. */
 @Composable
 fun SubmissionRow(item: SubmissionItem, onOpen: (String) -> Unit, onRetry: () -> Unit, onInfo: () -> Unit) {
-    val context = LocalContext.current
     val status = item.status
     val state = status.displayState()
     // The file being worked on stands out from the rest of the list.
@@ -64,7 +62,7 @@ fun SubmissionRow(item: SubmissionItem, onOpen: (String) -> Unit, onRetry: () ->
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    Formatter.formatFileSize(context, item.sizeBytes) + " · " + when (item.kind) {
+                    formatSize(item.sizeBytes) + " · " + when (item.kind) {
                         ItemKind.ORIGINAL_APK -> "APK"
                         ItemKind.SLIM_APK -> "slim APK"
                         ItemKind.BUNDLE -> "bundle, ${plural(item.bundlePaths.size, "file")}"

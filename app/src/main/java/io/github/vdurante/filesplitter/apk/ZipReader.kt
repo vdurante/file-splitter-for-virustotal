@@ -17,7 +17,16 @@ import java.util.zip.ZipException
  * /proc/self/fd, so without this the whole APK would have to be copied first. Supports Zip64, which
  * multi-GB APKs can need. Positional channel reads keep concurrent entry streams independent.
  */
-class ZipReader(private val channel: FileChannel, private val owner: Closeable) : Closeable {
+class ZipReader private constructor(
+    private val channel: FileChannel,
+    /** Closed together with the reader; null for a [nested] reader, which doesn't own the channel. */
+    private val owner: Closeable?,
+    /** Where this zip starts inside [channel]: 0, or the data offset of a [nested] zip entry. */
+    private val start: Long,
+    private val length: Long,
+) : Closeable {
+
+    constructor(channel: FileChannel, owner: Closeable) : this(channel, owner, 0, channel.size())
 
     class Entry(
         val name: String,
@@ -40,10 +49,7 @@ class ZipReader(private val channel: FileChannel, private val owner: Closeable) 
 
     /** Uncompressed contents of [entry]. Only STORED (0) and DEFLATED (8) are supported. */
     fun getInputStream(entry: Entry): InputStream {
-        val header = read(entry.localHeaderOffset, LOCAL_HEADER_SIZE)
-        if (header.getInt(0) != LOCAL_HEADER_SIG) throw ZipException("Bad local header for ${entry.name}")
-        val dataStart = entry.localHeaderOffset + LOCAL_HEADER_SIZE +
-            header.u16(26) + header.u16(28)
+        val dataStart = dataOffset(entry)
         val raw = ChannelInputStream(dataStart, dataStart + entry.compressedSize)
         return when (entry.method) {
             STORED -> raw
@@ -60,13 +66,31 @@ class ZipReader(private val channel: FileChannel, private val owner: Closeable) 
         }
     }
 
+    /**
+     * Opens a zip stored *inside* this one (e.g. an APK in an .apks archive) in place, without
+     * copying it. Only possible for STORED entries; returns null for compressed ones.
+     */
+    fun nested(entry: Entry): ZipReader? {
+        if (entry.method != STORED) return null
+        return ZipReader(channel, null, start + dataOffset(entry), entry.size)
+    }
+
     override fun close() {
+        // A nested reader shares its parent's channel; only the outermost reader closes it.
+        if (owner == null) return
         channel.close()
         owner.close()
     }
 
+    /** Offset of [entry]'s data, relative to the start of this zip. */
+    private fun dataOffset(entry: Entry): Long {
+        val header = read(entry.localHeaderOffset, LOCAL_HEADER_SIZE)
+        if (header.getInt(0) != LOCAL_HEADER_SIG) throw ZipException("Bad local header for ${entry.name}")
+        return entry.localHeaderOffset + LOCAL_HEADER_SIZE + header.u16(26) + header.u16(28)
+    }
+
     private fun readCentralDirectory(): List<Entry> {
-        val fileSize = channel.size()
+        val fileSize = length
         val tailSize = minOf(fileSize, (EOCD_SIZE + 0xFFFF).toLong()).toInt()
         if (tailSize < EOCD_SIZE) throw ZipException("File too small to be a zip")
         val tail = read(fileSize - tailSize, tailSize)
@@ -136,7 +160,7 @@ class ZipReader(private val channel: FileChannel, private val owner: Closeable) 
         val buffer = ByteBuffer.allocate(length).order(ByteOrder.LITTLE_ENDIAN)
         var pos = position
         while (buffer.hasRemaining()) {
-            val n = channel.read(buffer, pos)
+            val n = channel.read(buffer, start + pos)
             if (n < 0) throw ZipException("Unexpected end of file")
             pos += n
         }
@@ -153,7 +177,7 @@ class ZipReader(private val channel: FileChannel, private val owner: Closeable) 
             if (len == 0) return 0
             if (position >= end) return -1
             val n = minOf(len.toLong(), end - position).toInt()
-            val read = channel.read(ByteBuffer.wrap(b, off, n), position)
+            val read = channel.read(ByteBuffer.wrap(b, off, n), start + position)
             if (read < 0) return -1
             position += read
             return read

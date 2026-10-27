@@ -108,11 +108,11 @@ fun HomeScreen(apiKey: String, onApiKeySave: (String) -> Unit, onApkPicked: (Uri
                 }
             }
             Spacer(Modifier.height(12.dp))
-            StepCard(number = 2, title = "Pick an APK to scan", enabled = hasKey && !editingKey) {
+            StepCard(number = 2, title = "Pick an APK or .apks to scan", enabled = hasKey && !editingKey) {
                 Text(
                     "APKs up to 650 MB are submitted as they are. Bigger ones are split automatically: " +
                         "the largest files move into bundle APKs, scanned next to a slimmed-down APK " +
-                        "with everything else.",
+                        "with everything else. In an .apks archive, each APK inside is handled this way.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -230,7 +230,7 @@ private fun PickApkButton(enabled: Boolean, onApkPicked: (Uri) -> Unit) {
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text("Select APK file")
+        Text("Select file")
     }
 }
 
