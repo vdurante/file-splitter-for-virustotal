@@ -69,9 +69,6 @@ cat > "$NOTES" <<EOF
 ## Install
 
 Download \`file-splitter-for-virustotal-$VERSION.apk\` below and open it on your phone (Android 8.0+).
-You'll need a free [VirusTotal API key](https://www.virustotal.com/gui/my-apikey).
-
-Unofficial: not affiliated with or endorsed by VirusTotal or Google.
 
 ## Verify
 
@@ -80,7 +77,7 @@ Unofficial: not affiliated with or endorsed by VirusTotal or Google.
 EOF
 run gh release create "$TAG" "$OUT" \
   --target "$(git rev-parse HEAD)" \
-  --title "File Splitter for VirusTotal $VERSION" \
+  --title "$VERSION" \
   --notes-file "$NOTES" \
   --generate-notes
 [[ "$DRY_RUN" == "1" ]] && echo "(dry run) nothing was published" || echo "✓ Published $TAG"
