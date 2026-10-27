@@ -1,8 +1,9 @@
 #!/bin/bash
 # Publishes the signed release APK as a GitHub release, then offers to bump the version.
 #
-#   ./gradlew publishGithubRelease     builds the release APK, then runs this script
-#   scripts/release.sh                 same, building the APK itself
+#   scripts/release.sh                         builds the release APK and publishes it
+#   ./gradlew publishGithubRelease --console=plain   same through Gradle (plain console, so its
+#                                              progress bar doesn't draw over the questions)
 #   DRY_RUN=1 scripts/release.sh       checks and builds everything but changes nothing on GitHub
 #
 # Needs: the GitHub CLI (gh) logged in, keystore.properties (see README → Release builds), a clean
@@ -85,13 +86,13 @@ run gh release create "$TAG" "$OUT" \
 # --- Version bump ------------------------------------------------------------------------------
 IFS=. read -r MAJOR MINOR PATCH <<<"$VERSION"
 NEXT="$MAJOR.$MINOR.$((${PATCH:-0} + 1))"
-printf 'Bump the version for the next release? Enter a version, press Enter for %s, or n to skip:\n' "$NEXT"
-ANSWER=""
-read -r ANSWER || ANSWER="n"
-if [[ "$ANSWER" =~ ^[Nn] ]]; then
+if ! ask "Bump the version for the next release?"; then
   echo "Version left at $VERSION"
   exit 0
 fi
+printf 'Next version [%s]:\n' "$NEXT"
+ANSWER=""
+read -r ANSWER || true
 NEXT="${ANSWER:-$NEXT}"
 [[ "$NEXT" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "Not a version like 1.2.3: $NEXT"
 if [[ "$DRY_RUN" == "1" ]]; then

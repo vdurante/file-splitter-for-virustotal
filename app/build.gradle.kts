@@ -74,14 +74,17 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
-// ./gradlew publishGithubRelease: builds the signed release APK and publishes it on GitHub
-// (see scripts/release.sh). Interactive, so run it from a terminal.
+// ./gradlew publishGithubRelease --console=plain: builds the signed release APK and publishes it
+// on GitHub (see scripts/release.sh). Interactive, so run it from a terminal.
 tasks.register<Exec>("publishGithubRelease") {
     group = "publishing"
     description = "Builds the signed release APK and publishes it as a GitHub release (needs gh)."
     dependsOn("assembleRelease")
     workingDir = rootDir
     commandLine("bash", "scripts/release.sh", "--no-build")
+    doFirst {
+        logger.lifecycle("Tip: add --console=plain (or run scripts/release.sh) so Gradle's progress bar doesn't cover the questions.")
+    }
     standardInput = System.`in`
     notCompatibleWithConfigurationCache("Asks questions on the terminal")
 }
