@@ -20,6 +20,13 @@
   trademarks of their owners. Bring your own free VirusTotal API key.</sub>
 </p>
 
+<p align="center">
+  <img src=".github/screenshots/home.png" width="180" alt="Home: save your API key, then pick an APK">
+  <img src=".github/screenshots/submissions.png" width="180" alt="Submissions: a big APK split into a slim APK and a bundle">
+  <img src=".github/screenshots/result.png" width="180" alt="Result details for an uploaded file">
+  <img src=".github/screenshots/bundle.png" width="180" alt="Bundle details with the files it carries">
+</p>
+
 ## Features
 
 - 🧩 **Splits oversized APKs:** anything over 650 MB becomes a slim APK plus as few bundle APKs as
