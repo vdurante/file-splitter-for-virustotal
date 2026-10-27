@@ -61,8 +61,34 @@ Android 8.0 or newer.
 
 ```bash
 ./gradlew :app:installDebug      # build and install a debug build on the connected device
-./gradlew :app:assembleRelease   # release build (configure your own signing key first)
+./gradlew :app:assembleRelease   # release build (signed if keystore.properties exists)
 ```
+
+### Release builds
+
+Release builds are signed with the key described in `keystore.properties` at the repo root
+(gitignored; never commit it or the keystore):
+
+```properties
+storeFile=/absolute/path/to/release.jks
+storePassword=…
+keyAlias=…
+keyPassword=…
+```
+
+Create a key once with
+`keytool -genkeypair -keystore release.jks -alias <alias> -keyalg RSA -keysize 4096 -validity 10000`,
+and back it up: updates must be signed with the same key.
+
+To publish a GitHub release (needs the [GitHub CLI](https://cli.github.com), logged in), run this
+from a terminal with everything committed and pushed:
+
+```bash
+./gradlew publishGithubRelease   # or: scripts/release.sh; DRY_RUN=1 changes nothing on GitHub
+```
+
+It builds and verifies the signed APK, uploads it as release `v<versionName>` (asking before
+replacing an existing one), then offers to bump the version for the next release.
 
 ## Test files
 
