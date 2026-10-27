@@ -176,15 +176,12 @@ private fun HowItWorksDialog(onDismiss: () -> Unit) {
         title = { Text("How it works") },
         text = {
             Text(
-                "APKs under 650 MB are submitted as they are. In an .apks archive, each APK inside is " +
-                    "treated the same way.\n\n" +
-                    "Bigger APKs are split: their largest files move into bundle APKs (up to 650 MB each, " +
-                    "with the original manifest so VirusTotal analyzes them as APKs), and everything else " +
-                    "stays in a slim APK.\n\n" +
-                    "Files go one at a time: the SHA-256 is looked up first, and a file is uploaded only " +
-                    "if VirusTotal doesn't know it yet. The public API allows 4 calls per minute, so waits " +
-                    "for quota are normal.\n\n" +
-                    "Work continues in the background and progress is saved, so you can leave the app.",
+                "Large files are split into multiple APKs so they can fit the 650 MB file size " +
+                    "limit of VirusTotal.\n\n" +
+                    "Files are checked one at a time. If VirusTotal already knows a file, its report " +
+                    "is used right away; otherwise the file is uploaded. The free API allows 4 calls " +
+                    "per minute, so short waits are normal.\n\n" +
+                    "You can leave the app: the scan keeps running in the background.",
             )
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },

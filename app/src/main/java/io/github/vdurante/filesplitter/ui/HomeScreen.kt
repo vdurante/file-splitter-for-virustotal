@@ -108,7 +108,7 @@ fun HomeScreen(apiKey: String, onApiKeySave: (String) -> Unit, onApkPicked: (Uri
                 }
             }
             Spacer(Modifier.height(12.dp))
-            StepCard(number = 2, title = "Pick an APK or .apks to scan", enabled = hasKey && !editingKey) {
+            StepCard(number = 2, title = "Pick an APK to scan", enabled = hasKey && !editingKey) {
                 Text(
                     "Select an APK file to analyze. Large files are split into multiple APKs so they can fit " +
                         "the 650 MB file size limit of VirusTotal.",
