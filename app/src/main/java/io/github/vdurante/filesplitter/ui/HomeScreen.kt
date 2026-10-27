@@ -110,9 +110,8 @@ fun HomeScreen(apiKey: String, onApiKeySave: (String) -> Unit, onApkPicked: (Uri
             Spacer(Modifier.height(12.dp))
             StepCard(number = 2, title = "Pick an APK or .apks to scan", enabled = hasKey && !editingKey) {
                 Text(
-                    "APKs up to 650 MB are submitted as they are. Bigger ones are split automatically: " +
-                        "the largest files move into bundle APKs, scanned next to a slimmed-down APK " +
-                        "with everything else. In an .apks archive, each APK inside is handled this way.",
+                    "Select an APK file to analyze. Large files are split into multiple APKs so they can fit " +
+                        "the 650 MB file size limit of VirusTotal.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
