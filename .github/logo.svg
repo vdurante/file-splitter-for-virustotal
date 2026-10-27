@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="9 9 90 90">
+  <!-- Same artwork as app/src/main/res/drawable/ic_launcher_foreground.xml, on a rounded tile. -->
+  <rect x="9" y="9" width="90" height="90" rx="22" fill="#1B1D2B"/>
+  <g transform="translate(54 54) scale(0.8) translate(-54 -54)">
+    <path d="M35,28 H63 L73,38 V80 H35 Z M63,28 V38 H73" fill="none" stroke="#8AA4F5" stroke-width="2.2" stroke-linejoin="miter"/>
+    <g transform="translate(41 46) scale(0.24)">
+      <path fill-rule="evenodd" fill="#8AA4F5" d="M45.292,44.5 L0,89 H100 V0 H0 L45.292,44.5 Z M90,80 H22 L57.987,44.8 L22,9 H90 V80 Z"/>
+    </g>
+  </g>
+</svg>

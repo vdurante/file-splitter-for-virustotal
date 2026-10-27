@@ -1,12 +1,52 @@
-# File Splitter for VirusTotal
+<p align="center">
+  <img src=".github/logo.svg" width="128" height="128" alt="File Splitter for VirusTotal logo">
+</p>
 
-An Android app that scans APK files with [VirusTotal](https://www.virustotal.com), including APKs
-larger than VirusTotal's 650 MB upload limit.
+<h1 align="center">File Splitter for VirusTotal</h1>
 
-> Unofficial. Not affiliated with or endorsed by VirusTotal. "VirusTotal" and its logo
-> are trademarks of their owners. You need your own (free) VirusTotal API key.
+<p align="center">
+  <b>Scan APKs of any size with VirusTotal, right from your Android phone.</b><br>
+  Too big for the 650 MB upload limit? It splits them into scannable pieces automatically.
+</p>
+
+<p align="center">
+  <img alt="Android 8.0+" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white">
+  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-8AA4F5"></a>
+</p>
+
+<p align="center">
+  <sub>Unofficial. Not affiliated with or endorsed by VirusTotal or Google. "VirusTotal" and its logo are
+  trademarks of their owners. Bring your own free VirusTotal API key.</sub>
+</p>
+
+---
+
+## Features
+
+- 🧩 **Splits oversized APKs:** anything over 650 MB becomes a slim APK plus as few bundle APKs as
+  possible, each still analyzed by VirusTotal as an Android package.
+- ⚡ **Hash first, upload second:** files VirusTotal already knows are answered instantly by SHA-256.
+- 🚦 **Respects the free API:** 4 requests/minute, with automatic retries for quota and network errors.
+- 🔁 **Resilient queue:** one file at a time, per-file Retry, "Retry failed", and a pause-and-fix
+  banner for a rejected API key.
+- 🌙 **Works in the background:** progress notification, and saved progress you can **Resume** after
+  the app is closed.
+- 🔒 **Private:** your API key never leaves the device, and the app talks only to `virustotal.com`.
 
 ## How it works
+
+```mermaid
+flowchart LR
+    A[Pick an APK] --> B{Over 650 MB?}
+    B -- no --> U[Submit as-is]
+    B -- yes --> S[Move the largest files out]
+    S --> SL[Slim APK<br/>everything else]
+    S --> BU[Bundle APKs ≤ 650 MB<br/>moved files + manifest]
+    U & SL & BU --> H[SHA-256 lookup]
+    H -- known --> R[Report]
+    H -- unknown --> UP[Upload and analyze] --> R
+```
 
 1. Paste your VirusTotal API key (stored on the device only) and pick an APK.
 2. **Under 650 MB:** the APK is submitted as-is.
@@ -20,12 +60,6 @@ larger than VirusTotal's 650 MB upload limit.
 
 Each row shows its status (waiting, running, clean, detections, error), whether the result came
 from an **upload** or a **hash match**, a link to the VirusTotal report, and Retry when it failed.
-
-The app also:
-- stays within the public API limit (4 requests per minute) and retries quota and network errors;
-- pauses on a rejected API key and lets you fix it in place;
-- keeps working in the background (foreground service with a progress notification);
-- saves progress, so after the app is killed you can reopen it and tap **Resume**.
 
 An APK is a zip file, so splitting never decompiles anything: entries are copied as they are.
 Slim and bundle APKs aren't re-signed; they're for scanning, not installing.
