@@ -20,13 +20,11 @@
   trademarks of their owners. Bring your own free VirusTotal API key.</sub>
 </p>
 
----
-
 ## Features
 
-- 📦 **`.apks` support:** split-APK archives are opened and every APK inside is scanned.
 - 🧩 **Splits oversized APKs:** anything over 650 MB becomes a slim APK plus as few bundle APKs as
   possible, each still analyzed by VirusTotal as an Android package.
+- 📦 **`.apks` support:** split-APK archives are opened and every APK inside is scanned.
 - ⚡ **Hash first, upload second:** files VirusTotal already knows are answered instantly by SHA-256.
 - 🚦 **Respects the free API:** 4 requests/minute, with automatic retries for quota and network errors.
 - 🔁 **Resilient queue:** one file at a time, per-file Retry, "Retry failed", and a pause-and-fix

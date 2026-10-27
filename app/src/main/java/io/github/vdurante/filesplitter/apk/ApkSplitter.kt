@@ -15,11 +15,10 @@ import java.util.zip.ZipOutputStream
 object ApkSplitter {
 
     /**
-     * VirusTotal's maximum upload size (via `/files/upload_url`). Its docs say "650MB" without a
-     * unit, so this uses the stricter decimal reading: 650,000,000 bytes (not 650 MiB). It also
-     * matches what Android shows as "650 MB".
+     * VirusTotal's maximum upload size (via `/files/upload_url`): 650 MB in VirusTotal's own
+     * 1024-based units, i.e. 681,574,400 bytes, the same units the app uses to display sizes.
      */
-    const val VT_MAX_BYTES = 650_000_000L
+    const val VT_MAX_BYTES = 650L * 1024 * 1024
 
     /** Head-room for the estimate made before the slim APK is actually written. */
     private const val SAFETY_MARGIN = 8L * 1024 * 1024
